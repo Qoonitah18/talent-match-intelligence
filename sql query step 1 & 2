@@ -1,0 +1,318 @@
+-- STEP 1 --
+-- Tentukan high performers
+SELECT employee_id
+FROM performance_yearly
+WHERE rating = 5;
+
+-- PERBEDAAN HIGH PERFORMERS & NON HIGH
+-- Competency Pillars
+SELECT
+    c.pillar_code,
+    dp.pillar_label,
+    AVG(CASE WHEN p.rating = 5 THEN c.score END) AS avg_high,
+    AVG(CASE WHEN p.rating < 5 THEN c.score END) AS avg_non_high,
+    AVG(CASE WHEN p.rating = 5 THEN c.score END) -
+    AVG(CASE WHEN p.rating < 5 THEN c.score END) AS difference
+FROM competencies_yearly c
+JOIN performance_yearly p USING (employee_id, year)
+JOIN dim_competency_pillars dp ON c.pillar_code = dp.pillar_code
+GROUP BY c.pillar_code, dp.pillar_label
+ORDER BY difference DESC;
+
+-- Psychometric profiles
+-- IQ
+SELECT
+    AVG(CASE WHEN p.rating = 5 THEN psych.iq END) AS iq_high,
+    AVG(CASE WHEN p.rating < 5 THEN psych.iq END) AS iq_non
+FROM profiles_psych psych
+JOIN performance_yearly p USING (employee_id);
+
+-- GTQ
+SELECT
+    AVG(CASE WHEN p.rating = 5 THEN psych.gtq END) AS gtq_high,
+    AVG(CASE WHEN p.rating < 5 THEN psych.gtq END) AS gtq_non
+FROM profiles_psych psych
+JOIN performance_yearly p USING (employee_id);
+
+-- TIKI
+SELECT
+    AVG(CASE WHEN p.rating = 5 THEN psych.tiki END) AS tiki_high,
+    AVG(CASE WHEN p.rating < 5 THEN psych.tiki END) AS tiki_non
+FROM profiles_psych psych
+JOIN performance_yearly p USING (employee_id);
+
+-- Pauli
+SELECT
+    AVG(CASE WHEN p.rating = 5 THEN psych.pauli END) AS pauli_high,
+    AVG(CASE WHEN p.rating < 5 THEN psych.pauli END) AS pauli_non
+FROM profiles_psych psych
+JOIN performance_yearly p USING (employee_id);
+
+-- Faxtor
+SELECT
+    AVG(CASE WHEN p.rating = 5 THEN psych.faxtor END) AS faxtor_high,
+    AVG(CASE WHEN p.rating < 5 THEN psych.faxtor END) AS faxtor_non
+FROM profiles_psych psych
+JOIN performance_yearly p USING (employee_id);
+
+-- Papi_scores
+SELECT 
+    ps.scale_code,
+    AVG(CASE WHEN p.rating = 5 THEN ps.score END) AS avg_score_high,
+    AVG(CASE WHEN p.rating < 5 THEN ps.score END) AS avg_score_non_high
+FROM papi_scores ps
+JOIN performance_yearly p USING (employee_id)
+GROUP BY ps.scale_code
+ORDER BY ps.scale_code;
+
+-- DISC
+SELECT
+  LOWER(TRIM(ps.disc)) AS disc_code,
+  TRIM(ps.disc_word) AS disc_name,
+  COUNT(*) FILTER (WHERE p.rating = 5) AS high_count,
+  COUNT(*) FILTER (WHERE p.rating < 5) AS non_high_count,
+  (COUNT(*) FILTER (WHERE p.rating = 5) - COUNT(*) FILTER (WHERE p.rating < 5)) AS difference
+FROM profiles_psych ps
+JOIN performance_yearly p USING(employee_id)
+GROUP BY LOWER(TRIM(ps.disc)), TRIM(ps.disc_word)
+ORDER BY high_count DESC;
+
+-- MBTI
+SELECT 
+    UPPER(REPLACE(TRIM(ps.mbti), ' ', '')) AS mbti_clean,
+    SUM(CASE WHEN p.rating = 5 THEN 1 ELSE 0 END) AS high_count,
+    SUM(CASE WHEN p.rating < 5 THEN 1 ELSE 0 END) AS non_high_count
+FROM profiles_psych ps
+JOIN performance_yearly p USING (employee_id)
+WHERE ps.mbti IS NOT NULL
+GROUP BY mbti_clean
+ORDER BY high_count DESC;
+
+-- Behavioral data (strength)
+SELECT theme, COUNT(*) 
+FROM strengths s
+JOIN performance_yearly p USING (employee_id)
+WHERE p.rating = 5 AND s.rank = 1
+GROUP BY theme
+ORDER BY COUNT(*) DESC;
+
+-- Contextual factor
+-- Years of service month
+SELECT
+    AVG(CASE WHEN p.rating = 5 THEN e.years_of_service_months END) AS yos_high,
+    AVG(CASE WHEN p.rating < 5 THEN e.years_of_service_months END) AS yos_non
+FROM employees e
+JOIN performance_yearly p USING(employee_id);
+
+-- grade
+-- distribusi grade (menunjukkan grade apa yang paling banyak muncul)
+SELECT
+    g.name AS grade_name,
+    COUNT(*) FILTER (WHERE p.rating = 5) AS high_count,
+    COUNT(*) FILTER (WHERE p.rating < 5) AS non_high_count
+FROM employees e
+JOIN dim_grades g ON e.grade_id = g.grade_id
+JOIN performance_yearly p USING (employee_id)
+GROUP BY g.name
+ORDER BY high_count DESC;
+
+-- rata-rata grade level
+SELECT
+    AVG(CASE WHEN p.rating = 5 THEN e.grade_id END) AS avg_grade_high,
+    AVG(CASE WHEN p.rating < 5 THEN e.grade_id END) AS avg_grade_non_high,
+    AVG(CASE WHEN p.rating = 5 THEN e.grade_id END) -
+    AVG(CASE WHEN p.rating < 5 THEN e.grade_id END) AS difference
+FROM employees e
+JOIN performance_yearly p USING(employee_id);
+
+-- education
+-- distribusi pendidikan 
+SELECT
+    edu.name AS education_name,
+    COUNT(*) FILTER (WHERE p.rating = 5) AS high_count,
+    COUNT(*) FILTER (WHERE p.rating < 5) AS non_high_count
+FROM employees e
+JOIN dim_education edu ON e.education_id = edu.education_id
+JOIN performance_yearly p USING(employee_id)
+GROUP BY edu.name
+ORDER BY high_count DESC;
+
+-- rata -rata pendidikan (dibuat level agar lebih terlihat dari rating)
+SELECT
+    AVG(
+        CASE WHEN p.rating = 5 THEN
+            CASE 
+                WHEN edu.name = 'SMA' THEN 1
+                WHEN edu.name = 'D3' THEN 2
+                WHEN edu.name = 'S1' THEN 3
+                WHEN edu.name = 'S2' THEN 4
+            END
+        END
+    ) AS avg_edu_high,
+
+    AVG(
+        CASE WHEN p.rating < 5 THEN
+            CASE 
+                WHEN edu.name = 'SMA' THEN 1
+                WHEN edu.name = 'D3' THEN 2
+                WHEN edu.name = 'S1' THEN 3
+                WHEN edu.name = 'S2' THEN 4
+            END
+        END
+    ) AS avg_edu_non_high,
+
+    (
+        AVG(
+            CASE WHEN p.rating = 5 THEN
+                CASE 
+                    WHEN edu.name = 'SMA' THEN 1
+                    WHEN edu.name = 'D3' THEN 2
+                    WHEN edu.name = 'S1' THEN 3
+                    WHEN edu.name = 'S2' THEN 4
+                END
+            END
+        )
+        -
+        AVG(
+            CASE WHEN p.rating < 5 THEN
+                CASE 
+                    WHEN edu.name = 'SMA' THEN 1
+                    WHEN edu.name = 'D3' THEN 2
+                    WHEN edu.name = 'S1' THEN 3
+                    WHEN edu.name = 'S2' THEN 4
+                END
+            END
+        )
+    ) AS difference
+
+FROM employees e
+JOIN dim_education edu ON e.education_id = edu.education_id
+JOIN performance_yearly p USING(employee_id);
+
+
+-- STEP 2 --
+-- Buat Tabel Benchmark
+CREATE TABLE talent_benchmarks (
+    job_vacancy_id SERIAL PRIMARY KEY,
+    role_name TEXT,
+    job_level TEXT,
+    role_purpose TEXT,
+    selected_talent_ids TEXT[], 
+    weights_config JSONB        
+);
+
+-- Masukkan 1 baris data skenario 
+INSERT INTO talent_benchmarks 
+(role_name, job_level, role_purpose, selected_talent_ids, weights_config) 
+VALUES 
+('Data Analyst', 'Middle', 'Deliver actionable data insights.', 
+ ARRAY['EMP100012', 'EMP100039', 'EMP100041'], -- pilih ID yang memiliki rating 5
+'{"GTQ": 0.448, "STO": 0.398, "PAPI_V": 0.154}'::JSONB);
+WITH LatestYear AS (
+    SELECT MAX(year) AS current_year FROM performance_yearly
+),
+
+-- 1. CTE TargetBenchmark: Mengambil ID dan Konfigurasi Bobot dari Tabel Benchmark
+TargetBenchmark AS (
+    SELECT 
+        selected_talent_ids AS benchmark_ids,
+        weights_config
+    FROM talent_benchmarks
+    ORDER BY job_vacancy_id DESC
+    LIMIT 1 
+),
+
+-- 2. CTE Parameter: Mengambil Bobot dari JSONB
+Parameters AS (
+    SELECT
+        tb.benchmark_ids,
+        (tb.weights_config ->> 'GTQ')::NUMERIC AS w_gtq,
+        (tb.weights_config ->> 'STO')::NUMERIC AS w_sto,
+        (tb.weights_config ->> 'PAPI_V')::NUMERIC AS w_papi_v
+    FROM TargetBenchmark tb LIMIT 1
+),
+
+-- 3. CTE UserRawScores: Gabungkan Skor Mentah Karyawan dengan Baseline (Median)
+UserRawScores AS (
+    SELECT
+        e.employee_id,
+        p.w_gtq, p.w_sto, p.w_papi_v,
+        
+        -- Hitung Baseline Median untuk 3 TV yang dipilih
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY pp.gtq) FROM profiles_psych pp WHERE pp.employee_id = ANY(p.benchmark_ids)) AS baseline_gtq,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY cy.score) FROM competencies_yearly cy WHERE cy.employee_id = ANY(p.benchmark_ids) AND cy.pillar_code = 'STO' AND cy.year = (SELECT current_year FROM LatestYear)) AS baseline_sto,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ps.score) FROM papi_scores ps WHERE ps.employee_id = ANY(p.benchmark_ids) AND ps.scale_code = 'Papi_V') AS baseline_papi_v,
+        
+        -- Skor Mentah Karyawan
+        pp.gtq AS user_gtq,
+        (SELECT score FROM competencies_yearly WHERE employee_id = e.employee_id AND pillar_code = 'STO' AND year = (SELECT current_year FROM LatestYear)) AS user_sto,
+        (SELECT score FROM papi_scores WHERE employee_id = e.employee_id AND scale_code = 'Papi_V') AS user_papi_v
+    FROM employees e
+    CROSS JOIN Parameters p
+    LEFT JOIN profiles_psych pp ON e.employee_id = pp.employee_id
+),
+
+-- 4. CTE TGV_Calculations: Hitung Semua Match Rate dan Final Score
+TGV_Calculations AS (
+    SELECT
+        employee_id, baseline_gtq, baseline_sto, baseline_papi_v, 
+        user_gtq, user_sto, user_papi_v,                         
+        
+        -- Ratio Match Rate (User/Baseline)
+        (user_gtq::NUMERIC / baseline_gtq) * 100 AS tv_match_gtq_ratio,
+        (user_sto::NUMERIC / baseline_sto) * 100 AS tv_match_sto_ratio,
+        (user_papi_v::NUMERIC / baseline_papi_v) * 100 AS tv_match_papi_v_ratio,
+        
+        -- Normalized TGV Score
+        ROUND(((user_gtq - 9.0) / 37.0) * 100.0, 2) AS tgv_gtq_norm,
+        ROUND(((user_sto - 1.0) / 4.0) * 100.0, 2) AS tgv_sto_norm,
+        ROUND(((user_papi_v - 1.0) / 8.0) * 100.0, 2) AS tgv_papi_v_norm,
+        
+        -- Final Match Rate (Weighted Average)
+        ROUND(
+            (ROUND(((user_gtq - 9.0) / 37.0) * 100.0, 2) * w_gtq) +
+            (ROUND(((user_sto - 1.0) / 4.0) * 100.0, 2) * w_sto) +
+            (ROUND(((user_papi_v - 1.0) / 8.0) * 100.0, 2) * w_papi_v),
+            2
+        ) AS final_match_rate
+    FROM UserRawScores
+)
+
+-- FINAL: Menggabungkan TGV
+SELECT 
+    t.employee_id, dd.name AS directorate, dp.name AS role, dg.name AS grade,
+    'Kognisi' AS tgv_name, 'GTQ' AS tv_name, tc.baseline_gtq AS baseline_score,
+    tc.user_gtq AS user_score, ROUND(tc.tv_match_gtq_ratio::NUMERIC, 2) AS tv_match_rate, -- KOREKSI 4
+    tc.tgv_gtq_norm AS tgv_match_rate, ROUND(tc.final_match_rate::NUMERIC, 2) AS final_match_rate -- KOREKSI 5
+FROM employees t 
+LEFT JOIN TGV_Calculations tc ON t.employee_id = tc.employee_id
+LEFT JOIN dim_directorates dd ON t.directorate_id = dd.directorate_id
+LEFT JOIN dim_positions dp ON t.position_id = dp.position_id LEFT JOIN dim_grades dg ON t.grade_id = dg.grade_id
+
+UNION ALL 
+
+-- TGV STO (Drive)
+SELECT 
+    t.employee_id, dd.name AS directorate, dp.name AS role, dg.name AS grade,
+    'Drive' AS tgv_name, 'STO' AS tv_name, tc.baseline_sto AS baseline_score,
+    tc.user_sto AS user_score, ROUND(tc.tv_match_sto_ratio::NUMERIC, 2) AS tv_match_rate, -- KOREKSI 6
+    tc.tgv_sto_norm AS tgv_match_rate, ROUND(tc.final_match_rate::NUMERIC, 2) AS final_match_rate -- KOREKSI 7
+FROM employees t 
+LEFT JOIN TGV_Calculations tc ON t.employee_id = tc.employee_id
+LEFT JOIN dim_directorates dd ON t.directorate_id = dd.directorate_id
+LEFT JOIN dim_positions dp ON t.position_id = dp.position_id LEFT JOIN dim_grades dg ON t.grade_id = dg.grade_id
+
+UNION ALL 
+
+-- TGV PAPI_V (Kepribadian)
+SELECT 
+    t.employee_id, dd.name AS directorate, dp.name AS role, dg.name AS grade,
+    'Kepribadian' AS tgv_name, 'Papi_V' AS tv_name, tc.baseline_papi_v AS baseline_score,
+    tc.user_papi_v AS user_papi_v, ROUND(tc.tv_match_papi_v_ratio::NUMERIC, 2) AS tv_match_rate, -- KOREKSI 8
+    tc.tgv_papi_v_norm AS tgv_match_rate, ROUND(tc.final_match_rate::NUMERIC, 2) AS final_match_rate -- KOREKSI 9
+FROM employees t 
+LEFT JOIN TGV_Calculations tc ON t.employee_id = tc.employee_id
+LEFT JOIN dim_directorates dd ON t.directorate_id = dd.directorate_id
+LEFT JOIN dim_positions dp ON t.position_id = dp.position_id LEFT JOIN dim_grades dg ON t.grade_id = dg.grade_id
+
+ORDER BY final_match_rate DESC, employee_id, tgv_name;
